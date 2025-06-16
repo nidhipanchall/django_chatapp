@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat App - Enter Room</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 300px;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Join a Chat Room</h1>
+        <form id="room-form">
+            <input type="text" id="username-input" placeholder="Enter your name" required>
+            <input type="text" id="room-name-input" placeholder="Enter room name" required>
+            <button type="submit">Enter Room</button>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById('room-form');
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('username-input').value.trim();
+            const roomName = document.getElementById('room-name-input').value.trim();
+
+            if (username && roomName) {
+                window.location.href = `/chat/${roomName}/?username=${encodeURIComponent(username)}`;
+            }
+        });
+    </script>
+</body>
+</html>

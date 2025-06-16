@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat Room - {{ room_name }}</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: #f0f2f5;
+        }
+
+        h2 {
+            margin: 10px 15px;
+            color: #444;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .chat-box {
+            flex: 3;
+            padding: 15px;
+            background: #fff;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #ddd;
+        }
+
+        .chat-message {
+            background: #e6f3ff;
+            margin: 8px 0;
+            padding: 10px 15px;
+            border-radius: 12px;
+            max-width: 70%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            word-wrap: break-word;
+        }
+
+        .chat-message.me {
+            background: #d2f8d2;
+            align-self: flex-end;
+            text-align: right;
+        }
+
+        .meta {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .system-message {
+            font-style: italic;
+            font-size: 0.9rem;
+            color: #666;
+            margin: 6px 0;
+        }
+
+        .offline-notification {
+            margin: 0 15px;
+            font-size: 0.9rem;
+            color: #c82333;
+            font-style: italic;
+        }
+
+        .online-users {
+            flex: 1;
+            background: #f9f9f9;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .online-users h4 {
+            margin-top: 0;
+        }
+
+        #user-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        #user-list li::before {
+            content: "🟢 ";
+        }
+
+        #user-list li a {
+            text-decoration: none;
+            color: #007bff;
+        }
+
+        #user-list li a:hover {
+            text-decoration: underline;
+        }
+
+        .message-input {
+            display: flex;
+            padding: 12px 15px;
+            background: #fff;
+            border-top: 1px solid #ccc;
+        }
+
+        #message-input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 1rem;
+        }
+
+        #send-btn {
+            margin-left: 10px;
+            padding: 10px 20px;
+            background: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        #send-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Room: {{ room_name }}</h2>
+<div id="offline-notification" class="offline-notification"></div>
+
+<div class="container">
+    <!-- Chat Section -->
+    <div class="chat-box" id="chat-log"></div>
+
+    <!-- Online Users -->
+    <div class="online-users">
+        <h4>Online Users</h4>
+        <ul id="user-list"></ul>
+    </div>
+</div>
+
+<!-- Input Section -->
+<div class="message-input">
+    <input id="message-input" type="text" placeholder="Type your message..." autocomplete="off">
+    <button id="send-btn">Send</button>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const roomName = "{{ room_name }}";
+        const username = new URLSearchParams(window.location.search).get('username');
+        const chatSocket = new WebSocket(
+            'ws://' + window.location.host + '/ws/chat/' + roomName + '/?username=' + username
+        );
+
+        let typingTimer;
+        const TYPING_INTERVAL = 3000;
+
+        const chatLog = document.getElementById('chat-log');
+        const inputField = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const offlineBox = document.getElementById('offline-notification');
+
+        chatSocket.onmessage = function (e) {
+            const data = JSON.parse(e.data);
+
+            if (data.type === 'chat_message') {
+                const isMe = data.username === username;
+                const msgWrapper = document.createElement('div');
+                msgWrapper.className = 'chat-message' + (isMe ? ' me' : '');
+                msgWrapper.innerHTML = `<strong>${data.username}</strong><br>${data.message}<br><span class="meta">${data.timestamp}</span>`;
+                chatLog.appendChild(msgWrapper);
+                chatLog.scrollTop = chatLog.scrollHeight;
+
+            } else if (data.type === 'user_join' || data.type === 'user_leave') {
+                const systemMsg = document.createElement('p');
+                systemMsg.className = 'system-message';
+                systemMsg.innerText = data.message;
+                chatLog.appendChild(systemMsg);
+                updateOnlineUsers(data.online_users);
+                chatLog.scrollTop = chatLog.scrollHeight;
+
+            } else if (data.type === 'typing') {
+                const typingId = `typing-${data.username}`;
+                let existing = document.getElementById(typingId);
+
+                if (data.typing) {
+                    if (!existing && data.username !== username) {
+                        const typingMsg = document.createElement('p');
+                        typingMsg.className = 'system-message';
+                        typingMsg.id = typingId;
+                        typingMsg.innerText = `${data.username} is typing...`;
+                        chatLog.appendChild(typingMsg);
+                        chatLog.scrollTop = chatLog.scrollHeight;
+                    }
+                } else {
+                    if (existing) existing.remove();
+                }
+
+            } else if (data.type === 'offline_notification') {
+                offlineBox.innerText = data.message;
+                setTimeout(() => {
+                    offlineBox.innerText = '';
+                }, 4000);
+            }
+        };
+
+        chatSocket.onclose = function () {
+            alert("Connection closed. Please refresh the page.");
+        };
+
+        sendBtn.onclick = function () {
+            const message = inputField.value.trim();
+            if (message) {
+                chatSocket.send(JSON.stringify({ 'message': message }));
+                inputField.value = '';
+            }
+        };
+
+        inputField.addEventListener("keypress", function (e) {
+            if (e.key === 'Enter') sendBtn.click();
+        });
+
+        inputField.addEventListener("input", function () {
+            chatSocket.send(JSON.stringify({ 'typing': true }));
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                chatSocket.send(JSON.stringify({ 'typing': false }));
+            }, TYPING_INTERVAL);
+        });
+
+        function updateOnlineUsers(users) {
+            const userList = document.getElementById('user-list');
+            userList.innerHTML = '';
+            users.forEach(user => {
+                if (user !== username) {
+                    const li = document.createElement('li');
+                    const room = [username, user].sort().join("_");
+                    li.innerHTML = `<a href="/chat/${room}/?username=${username}">${user}</a>`;
+                    userList.appendChild(li);
+                }
+            });
+        }
+    });
+</script>
+
+</body>
+</html>
